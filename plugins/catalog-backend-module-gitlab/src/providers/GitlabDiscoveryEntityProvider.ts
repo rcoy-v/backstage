@@ -123,7 +123,7 @@ export class GitlabDiscoveryEntityProvider implements EntityProvider {
       const taskId = `${this.getProviderName()}:refresh`;
       return taskRunner.run({
         id: taskId,
-        fn: async () => {
+        fn: async (abortSignal) => {
           const logger = this.logger.child({
             class: GitlabDiscoveryEntityProvider.prototype.constructor.name,
             taskId,
@@ -131,7 +131,7 @@ export class GitlabDiscoveryEntityProvider implements EntityProvider {
           });
 
           try {
-            await this.refresh(logger);
+            await this.refresh(logger, abortSignal);
           } catch (error) {
             logger.error(
               `${this.getProviderName()} refresh failed, ${error}`,
@@ -143,7 +143,7 @@ export class GitlabDiscoveryEntityProvider implements EntityProvider {
     };
   }
 
-  async refresh(logger: Logger): Promise<void> {
+  async refresh(logger: Logger, abortSignal: AbortSignal): Promise<void> {
     if (!this.connection) {
       throw new Error(
         `Gitlab discovery connection not initialized for ${this.getProviderName()}`,
@@ -171,6 +171,11 @@ export class GitlabDiscoveryEntityProvider implements EntityProvider {
     };
 
     for await (const project of projects) {
+      logger.debug(`${this.getProviderName()} abort signal: ${abortSignal.aborted}`)
+      if (abortSignal.aborted) {
+        throw new Error(`aborting ${this.getProviderName()}`)
+      }
+
       if (!this.config.projectPattern.test(project.path_with_namespace ?? '')) {
         continue;
       }
